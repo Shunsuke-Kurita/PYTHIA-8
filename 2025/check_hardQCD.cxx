@@ -19,45 +19,92 @@ int main() {
 
     Pythia pythia;
     pythia.readString("HardQCD:gg2ccbar = on");
-    // pythia.readString("HardQCD:gg2bbbar = on");
     pythia.readString("Beams:eCM = 13600.");
 
     pythia.init();
 
-    TH1F* pT = new TH1F("Transverse momentum", ";p_{T} (GeV);Entries", 100, 0., 30.);
-    TH1F* eta = new TH1F("Pseudorapidity", ";#eta;Entries", 100, -5., 5.);
-    TH1F* phi = new TH1F("Azimuthal angle", ";#phi (rad);Entries", 600, - M_PI, M_PI);
-    TH1F* hDeltaPhi = new TH1F("hDeltaPhi", "Charm - AntiCharm;#Delta#phi (rad);Entries", 600, -0.5 * M_PI, 1.5 * M_PI);
-    // TH1F* hDeltaPhi = new TH1F("hDeltaPhi", "Bottom - AntiBottom;#Delta#phi (rad);Entries", 600, -0.5 * M_PI, 1.5 * M_PI);
+    TH1F* hDeltaPhi = new TH1F("hDeltaPhi", "DeltaPhi between electron and muon;#Delta#phi (rad);Entries", 600,  -0.5 * M_PI, 1.5 * M_PI);
+    TH1F* hElectronPt = new TH1F("hElectronPt", "Electron pT;p_{T} (GeV);Entries", 100, 0., 30.);
+    TH1F* hMuonPt = new TH1F("hMuonPt", "Muon pT;p_{T} (GeV);Entries", 100, 0., 30.);
+    TH1F* hElectronEta = new TH1F("hElectronEta", "Electron eta;#eta;Entries", 100, -5., 5.);
+    TH1F* hMuonEta = new TH1F("hMuonEta", "Muon eta;#eta;Entries", 100, -5., 5.);
 
-    for (int iEvent = 0; iEvent < 10000; ++iEvent) {
-        pythia.next();
+    const int D0ID = 421;       // D0
+    const int DplusID = 411;    // D+
+    const int DstarID = 413;    // D*+
+    const int electronID = 11;  // Electron
+    const int positronID = -11; // Positron
+    const int muonID = 13;      // Muon
+    const int antimuonID = -13; // Antimuon
 
-        int iParticle = 0, iAntiParticle = 0;
+    for (int iEvent = 0; iEvent < 1000000; ++iEvent) {
+        if (!pythia.next()) continue; // Skip failed events
 
+        // Vectors to store electrons, positrons, muons, and antimuons from D meson decays
+        std::vector<int> electronIndices;
+        std::vector<int> positronIndices;
+        std::vector<int> muonIndices;
+        std::vector<int> antimuonIndices;
+
+        // Loop through the event record once
         for (int i = 0; i < pythia.event.size(); ++i) {
-            if (pythia.event[i].id() == 4) iParticle = i;
-            if (pythia.event[i].id() == -4) iAntiParticle = i;
-            // if (pythia.event[i].id() == 5) iParticle = i;
-            // if (pythia.event[i].id() == -5) iAntiParticle = i;
+            int id = pythia.event[i].id();
+
+            // Check for D mesons
+            if (id == D0ID || id == DplusID || id == DstarID || id == -D0ID || id == -DplusID || id == -DstarID) {
+                // Loop through decay products of the D meson
+                for (int j = i + 1; j < pythia.event.size(); ++j) {
+                    // Check if the particle is a decay product of the D meson
+                    if (pythia.event[j].mother1() == i || pythia.event[j].mother2() == i) {
+                        int daughterID = pythia.event[j].id();
+
+                        // Check if the decay product is an electron, positron, muon, or antimuon
+                        if (daughterID == electronID) {
+                            electronIndices.push_back(j);
+                        } else if (daughterID == positronID) {
+                            positronIndices.push_back(j);
+                        } else if (daughterID == muonID) {
+                            muonIndices.push_back(j);
+                        } else if (daughterID == antimuonID) {
+                            antimuonIndices.push_back(j);
+                        }
+                    }
+                }
+            }
         }
 
-        if (iParticle != 0 && iAntiParticle != 0) {
-            double deltaPhiPair = calculateDeltaPhi(pythia.event, iParticle, iAntiParticle);
+        // Pair electrons with antimuons and positrons with muons
+        for (size_t iElec = 0; iElec < electronIndices.size(); ++iElec) {
+            for (size_t iAntiMu = 0; iAntiMu < antimuonIndices.size(); ++iAntiMu) {
+                double deltaPhiPair = calculateDeltaPhi(pythia.event, electronIndices[iElec], antimuonIndices[iAntiMu]);
 
-            pT->Fill(pythia.event[iParticle].pT());
-            eta->Fill(pythia.event[iParticle].eta());
-            phi->Fill(pythia.event[iParticle].phi());
-            hDeltaPhi->Fill(deltaPhiPair);
+                hDeltaPhi->Fill(deltaPhiPair);
+                hElectronPt->Fill(pythia.event[electronIndices[iElec]].pT());
+                hMuonPt->Fill(pythia.event[antimuonIndices[iAntiMu]].pT());
+                hElectronEta->Fill(pythia.event[electronIndices[iElec]].eta());
+                hMuonEta->Fill(pythia.event[antimuonIndices[iAntiMu]].eta());
+            }
         }
-        
+
+        for (size_t iPos = 0; iPos < positronIndices.size(); ++iPos) {
+            for (size_t iMu = 0; iMu < muonIndices.size(); ++iMu) {
+                double deltaPhiPair = calculateDeltaPhi(pythia.event, positronIndices[iPos], muonIndices[iMu]);
+
+                hDeltaPhi->Fill(deltaPhiPair);
+                hElectronPt->Fill(pythia.event[positronIndices[iPos]].pT());
+                hMuonPt->Fill(pythia.event[muonIndices[iMu]].pT());
+                hElectronEta->Fill(pythia.event[positronIndices[iPos]].eta());
+                hMuonEta->Fill(pythia.event[muonIndices[iMu]].eta());
+            }
+        }
     }
 
-    TFile* outFileRoot = new TFile("output.root", "RECREATE");
-    pT->Write();
-    eta->Write();
-    phi->Write();
+    TFile* outFileRoot = new TFile("emu.root", "RECREATE");
     hDeltaPhi->Write();
+    hElectronPt->Write();
+    hMuonPt->Write();
+    hElectronEta->Write();
+    hMuonEta->Write();
     outFileRoot->Close();
 
     pythia.stat();
