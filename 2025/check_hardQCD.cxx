@@ -37,8 +37,8 @@ int main() {
     const int muonID = 13;      // Muon
     const int antimuonID = -13; // Antimuon
 
-    for (int iEvent = 0; iEvent < 1000000; ++iEvent) {
-        if (!pythia.next()) continue; // Skip failed events
+    for (int iEvent = 0; iEvent < 100000000; ++iEvent) {
+        pythia.next();
 
         // Vectors to store electrons, positrons, muons, and antimuons from D meson decays
         std::vector<int> electronIndices;
@@ -75,7 +75,11 @@ int main() {
 
         // Pair electrons with antimuons and positrons with muons
         for (size_t iElec = 0; iElec < electronIndices.size(); ++iElec) {
+            double etaElec = pythia.event[electronIndices[iElec]].eta();
+            if (etaElec < -0.8 || etaElec > 0.8) continue;
             for (size_t iAntiMu = 0; iAntiMu < antimuonIndices.size(); ++iAntiMu) {
+                double etaAntiMu = pythia.event[antimuonIndices[iAntiMu]].eta();
+                if (etaAntiMu < -4.0 || etaAntiMu > -2.5) continue;
                 double deltaPhiPair = calculateDeltaPhi(pythia.event, electronIndices[iElec], antimuonIndices[iAntiMu]);
 
                 hDeltaPhi->Fill(deltaPhiPair);
@@ -87,7 +91,11 @@ int main() {
         }
 
         for (size_t iPos = 0; iPos < positronIndices.size(); ++iPos) {
+            double etaPos = pythia.event[positronIndices[iPos]].eta();
+            if (etaPos < -0.8 || etaPos > 0.8) continue;
             for (size_t iMu = 0; iMu < muonIndices.size(); ++iMu) {
+                double etaMu = pythia.event[muonIndices[iMu]].eta();
+                if (etaMu < -4.0 || etaMu > -2.5) continue;
                 double deltaPhiPair = calculateDeltaPhi(pythia.event, positronIndices[iPos], muonIndices[iMu]);
 
                 hDeltaPhi->Fill(deltaPhiPair);
@@ -99,7 +107,7 @@ int main() {
         }
     }
 
-    TFile* outFileRoot = new TFile("emu.root", "RECREATE");
+    TFile* outFileRoot = new TFile("emu_etaCuts.root", "RECREATE");
     hDeltaPhi->Write();
     hElectronPt->Write();
     hMuonPt->Write();
